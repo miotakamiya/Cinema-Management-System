@@ -1,0 +1,93 @@
+﻿--USE master;
+--GO
+--IF EXISTS (SELECT * FROM sys.databases WHERE name = 'QLRP')
+--BEGIN
+--    ALTER DATABASE QLRP SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+--    DROP DATABASE QLRP;
+--END
+--GO
+--CREATE DATABASE QLRP;
+--GO
+USE QLRP;
+GO
+
+CREATE TABLE Phim (
+    MaPhim INT PRIMARY KEY IDENTITY(1,1),
+    TenPhim NVARCHAR(200) NOT NULL,
+    TheLoai NVARCHAR(100),
+    ThoiLuong INT CHECK (ThoiLuong > 0),
+    GioiHanTuoi VARCHAR(10),
+    NgayKhoiChieu DATE,
+    TrangThai NVARCHAR(50) DEFAULT N'Sắp chiếu'
+);
+
+CREATE TABLE PhongChieu (
+    MaPhong INT PRIMARY KEY IDENTITY(1,1),
+    TenPhong NVARCHAR(50) NOT NULL,
+    LoaiPhong NVARCHAR(20),
+    SucChua INT CHECK (SucChua > 0)
+);
+
+CREATE TABLE Ghe (
+    MaGhe INT PRIMARY KEY IDENTITY(1,1),
+    MaPhong INT NOT NULL,
+    Hang CHAR(1) NOT NULL,
+    SoCot INT NOT NULL,
+    LoaiGhe NVARCHAR(20) DEFAULT N'Thường',
+    CONSTRAINT FK_Ghe_Phong FOREIGN KEY (MaPhong) REFERENCES PhongChieu(MaPhong) ON DELETE CASCADE
+);
+
+CREATE TABLE SuatChieu (
+    MaSuat INT PRIMARY KEY IDENTITY(1,1),
+    MaPhim INT NOT NULL,
+    MaPhong INT NOT NULL,
+    NgayChieu DATE NOT NULL,
+    GioBatDau TIME NOT NULL,
+    GioKetThuc TIME NOT NULL,
+    CONSTRAINT FK_SuatChieu_Phim FOREIGN KEY (MaPhim) REFERENCES Phim(MaPhim),
+    CONSTRAINT FK_SuatChieu_Phong FOREIGN KEY (MaPhong) REFERENCES PhongChieu(MaPhong)
+);
+
+CREATE TABLE KhachHang (
+    MaKH INT PRIMARY KEY IDENTITY(1,1),
+    HoTen NVARCHAR(100) NOT NULL,
+    SDT VARCHAR(15) UNIQUE,
+    Email VARCHAR(100),
+    DiemTichLuy INT DEFAULT 0
+);
+
+CREATE TABLE ComboDichVu (
+    MaCombo INT PRIMARY KEY IDENTITY(1,1),
+    TenCombo NVARCHAR(100) NOT NULL,
+    Gia DECIMAL(18,2) CHECK (Gia >= 0)
+);
+
+CREATE TABLE HoaDon (
+    MaHD INT PRIMARY KEY IDENTITY(1,1),
+    MaKH INT,
+    NgayLap DATETIME DEFAULT GETDATE(),
+    HinhThucThanhToan NVARCHAR(50),
+    TrangThai NVARCHAR(50) DEFAULT N'Đã thanh toán',
+    TongTien DECIMAL(18,2) DEFAULT 0,
+    CONSTRAINT FK_HoaDon_KhachHang FOREIGN KEY (MaKH) REFERENCES KhachHang(MaKH)
+);
+
+CREATE TABLE Ve_ChiTiet (
+    MaVe INT PRIMARY KEY IDENTITY(1,1),
+    MaHD INT NOT NULL,
+    MaSuat INT NOT NULL,
+    MaGhe INT NOT NULL,
+    GiaVe DECIMAL(18,2) NOT NULL,
+    CONSTRAINT FK_Ve_HoaDon FOREIGN KEY (MaHD) REFERENCES HoaDon(MaHD),
+    CONSTRAINT FK_Ve_SuatChieu FOREIGN KEY (MaSuat) REFERENCES SuatChieu(MaSuat),
+    CONSTRAINT FK_Ve_Ghe FOREIGN KEY (MaGhe) REFERENCES Ghe(MaGhe)
+);
+
+CREATE TABLE HoaDon_Combo (
+    MaHD INT NOT NULL,
+    MaCombo INT NOT NULL,
+    SoLuong INT CHECK (SoLuong > 0),
+    PRIMARY KEY (MaHD, MaCombo),
+    CONSTRAINT FK_Combo_HoaDon FOREIGN KEY (MaHD) REFERENCES HoaDon(MaHD),
+    CONSTRAINT FK_Combo_DV FOREIGN KEY (MaCombo) REFERENCES ComboDichVu(MaCombo)
+);
