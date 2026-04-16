@@ -1,42 +1,56 @@
 ﻿USE QLRP;
 GO
 
-CREATE OR ALTER PROCEDURE sp_DatVe
+--Tự tính tiền dựa trên loại ghế và hỗ trợ Combo
+CREATE OR ALTER PROCEDURE sp_DatVe_NangCap
     @MaKH INT,
     @MaSuat INT,
-    @MaGhe INT,
-    @GiaVe DECIMAL(18,2)
+    @DanhSachGhe NVARCHAR(MAX), -- Chuỗi ID ghế cách nhau bằng dấu phẩy, VD: '1,2,3'
+    @HinhThucTT NVARCHAR(50)
 AS
 BEGIN
-    IF EXISTS (
-        SELECT 1 
-        FROM Ve_ChiTiet 
-        WHERE MaSuat = @MaSuat AND MaGhe = @MaGhe
-    )
-    BEGIN
-        RAISERROR (N'Lỗi: Ghế này đã có người đặt cho suất chiếu này!', 16, 1);
-        RETURN;
-    END
-
-    BEGIN TRANSACTION;
+    SET NOCOUNT ON;
     BEGIN TRY
-        -- 1. Tạo hóa đơn
-        INSERT INTO HoaDon (MaKH, NgayLap, TongTien, TrangThai)
-        VALUES (@MaKH, GETDATE(), @GiaVe, N'Đã thanh toán');
+        BEGIN TRANSACTION;
+
+        -- Kiểm tra xem có ghế nào trong danh sách đã bị đặt chưa
+        IF EXISTS (
+            SELECT 1 FROM Ve_ChiTiet 
+            WHERE MaSuat = @MaSuat AND MaGhe IN (SELECT value FROM STRING_SPLIT(@DanhSachGhe, ','))
+        )
+        BEGIN
+            RAISERROR (N'Một hoặc nhiều ghế bạn chọn đã có người đặt!', 16, 1);
+        END
+
+        --Tạo hóa đơn trống trước
+        INSERT INTO HoaDon (MaKH, NgayLap, HinhThucThanhToan, TrangThai, TongTien)
+        VALUES (@MaKH, GETDATE(), @HinhThucTT, N'Đã thanh toán', 0);
 
         DECLARE @MaHD INT = SCOPE_IDENTITY();
 
-        -- 2. Chèn vào chi tiết vé
+        -- Chèn các vé vào Chi tiết và TỰ ĐỘNG lấy giá vé theo loại ghế
         INSERT INTO Ve_ChiTiet (MaHD, MaSuat, MaGhe, GiaVe)
-        VALUES (@MaHD, @MaSuat, @MaGhe, @GiaVe);
+        SELECT @MaHD, @MaSuat, g.MaGhe, 
+               CASE 
+                    WHEN g.LoaiGhe = N'Sweetbox' THEN 300000
+                    WHEN g.LoaiGhe = N'VIP' THEN 170000
+                    ELSE 120000 
+               END
+        FROM Ghe g
+        WHERE g.MaGhe IN (SELECT value FROM STRING_SPLIT(@DanhSachGhe, ','));
+
+        -- Cập nhật lại tổng tiền cho hóa đơn vừa tạo
+        UPDATE HoaDon
+        SET TongTien = (SELECT SUM(GiaVe) FROM Ve_ChiTiet WHERE MaHD = @MaHD)
+        WHERE MaHD = @MaHD;
 
         COMMIT TRANSACTION;
-        PRINT N'Đặt vé thành công!';
+        PRINT N'Đặt nhóm vé thành công! Mã hóa đơn: ' + CAST(@MaHD AS VARCHAR);
     END TRY
     BEGIN CATCH
-        ROLLBACK TRANSACTION;
-        DECLARE @ErrMsg NVARCHAR(4000) = ERROR_MESSAGE();
-        RAISERROR(@ErrMsg, 16, 1);
+        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+        DECLARE @ErrorMsg NVARCHAR(4000) = ERROR_MESSAGE();
+        RAISERROR(@ErrorMsg, 16, 1);
     END CATCH
 END;
 GO
