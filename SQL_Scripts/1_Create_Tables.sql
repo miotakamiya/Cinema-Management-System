@@ -47,6 +47,7 @@ CREATE TABLE Phim (
     MaPhim INT PRIMARY KEY IDENTITY(1,1),
     TenPhim NVARCHAR(200) NOT NULL,
     MaQuocGia INT,
+    TheLoai NVARCHAR(50),
     ThoiLuong INT CHECK (ThoiLuong > 0),
     GioiHanTuoi VARCHAR(10),
     NgayKhoiChieu DATE,
